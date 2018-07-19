@@ -1,0 +1,22 @@
+{
+  "name":"lalithmohan/task-mapper",
+  "type":"library",
+  "description":"A PHP library that provides an implementation of the modified preorder tree traversal algorithm making it easy to implement the MPTT algorithm in your PHP applications and also include graphical representation of entities into tree structure /hierarchy",
+  "license":"GPL-3.0",
+  "authors":[
+    {
+      "name" : "Lalit Mohan",
+      "email":"lalitmohanwd@gmail.com" ,
+      "role":"Developer"
+    }
+
+  ],
+  "require":{
+    "php":">=5.5.0"
+  },
+  "autoload":{
+    "classmap":[
+                "TaskMapper.php"
+    ]
+  }
+}
