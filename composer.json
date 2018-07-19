@@ -1,7 +1,7 @@
 {
   "name":"lalithmohan/task-mapper",
   "type":"library",
-  "description":"A PHP library that provides an implementation of the modified preorder tree traversal algorithm making it easy to implement the MPTT algorithm in your PHP applications and also include graphical representation of entities into tree structure /hierarchy",
+  "description":"A PHP library that provides an implementation of task Mapper ",
   "license":"GPL-3.0",
   "authors":[
     {
