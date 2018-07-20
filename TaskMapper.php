@@ -35,7 +35,7 @@ class TaskMapper{
 
         $parent = (int)$parent;
 
-        if ($parent == 0 || isset($this->lookup[$parent])) {
+        if ($parent == 0 || isset($this->lookup[$parent]) || ($this->getLookup($parent)>2)) {
 
             $descendants = $this->get_childs($parent);
 
@@ -46,7 +46,6 @@ class TaskMapper{
                 if ($position > count($descendants) || $position < 0){
                     $position = count($descendants);
                 }
-
             }
 
             if (empty($descendants) || $position == 0) {
@@ -55,13 +54,11 @@ class TaskMapper{
 
             } else {
 
-                // find the child node that currently exists at the position where the new node needs to be inserted to
                 $slice = array_slice($descendants, $position - 1, 1);
 
                 $descendants = array_shift($slice);
 
-                // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-                // the insert, and will need to be updated
+
                 $boundary = $descendants[$this->properties['right_column']];
 
             }
@@ -155,46 +152,7 @@ class TaskMapper{
 
     }
 
-    /**
-     *  Creates a copy of a node (including its descendant nodes) as the child node of a given node.
-     *
-     *  <code>
-     *  // insert a topmost node
-     *  $node = $mptt->add(0, 'Main');
-     *
-     *  // add a child node
-     *  $child1 = $mptt->add($node, 'Child 1');
-     *
-     *  // add another child node
-     *  $child2 = $mptt->add($node, 'Child 2');
-     *
-     *  // create a copy of "Child 2" node and put it as "Child 1"'s child
-     *  $mptt->copy($child2, $child1);
-     *  </code>
-     *
-     *  @param  integer     $source     The ID of a node to copy.
-     *
-     *                                  <i>Remember that the node will be copied together with all its descendant nodes!</i>
-     *
-     *  @param  integer     $target     The ID of a node which will become the copy's parent node.
-     *
-     *                                  Use "0" to make the copy a topmost node.
-     *
-     *  @param  integer     $position   (Optional) The position the node will have among the target node's children
-     *                                  nodes.
-     *
-     *                                  When target node is "0", this refers to the position the node will have among
-     *                                  the topmost nodes.
-     *
-     *                                  The values are 0-based, meaning that if you want the node to be inserted as
-     *                                  the first child of the target node, you have to use "0", if you want it to
-     *                                  be second, use "1", and so on.
-     *
-     *                                  If not given (or given as boolean FALSE), the node will be inserted as the last
-     *                                  of the target node's children nodes.
-     *
-     *  @return mixed                   Returns the ID of the newly created copy, or FALSE on error.
-     */
+
     public function copy($source, $target, $position = false) {
 
         // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
@@ -524,6 +482,7 @@ class TaskMapper{
 
         $this->_init();
 
+
         if (isset($this->lookup[$node]) || $node === 0) {
 
             $descendants = array();
@@ -559,10 +518,10 @@ class TaskMapper{
 
     }
 
+
     public function get_next_sibling($node) {
 
-        // if node exists, get its siblings
-        // (if $node exists this will never be an empty array as it will contain at least $node)
+
         if ($siblings = $this->get_siblings($node, true)) {
 
             // get the node's position among the siblings
@@ -572,7 +531,7 @@ class TaskMapper{
             $sibling = array_slice($siblings, $node_position + 1, 1);
 
             // return result
-            return !empty($sibling) ? array_pop($sibling) : 0;
+            return  !empty($sibling) ? array_pop($sibling) : 0;
 
         }
 
@@ -581,87 +540,47 @@ class TaskMapper{
 
     }
 
-    /**
-     *  Returns an array containing a node's direct parent node if the node has a parent node, or "0" if the node is a
-     *  topmost node.
-     *
-     *  @param  integer     $node               The ID of a node for which to return the parent node.
-     *
-     *  @return mixed                           Returns an array containing a node's direct parent node if the node has a
-     *                                          parent node, or "0" if the node is a topmost node.
-     *
-     *                                          <i>Since this method may return both "0" and FALSE, make sure you use ===
-     *                                          to verify the returned result!</>
-     */
+
     public function get_parent($node) {
 
-        // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
         $this->_init();
 
-        // if node exists in the lookup array
         if (isset($this->lookup[$node]))
 
-            // if node has a parent node, return the parent node's properties
-            // also, return 0 if the node is a topmost node
             return isset($this->lookup[$this->lookup[$node][$this->properties['parent_column']]]) ? $this->lookup[$this->lookup[$node][$this->properties['parent_column']]] : 0;
 
-        // if script gets this far, return false as something must've went wrong
         return false;
 
     }
 
-    /**
-     *  Returns an unidimensional (flat) array with the path to the given node (including the node itself).
-     *
-     *  @param  integer     $node               The ID of a node for which to return the path.
-     *
-     *  @return array                           Returns an unidimensional array with the path to the given node.
-     */
-    public function get_path($node) {
 
-        // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
+    public function get_path_from_bottom($node) {
+
         $this->_init();
 
         $parents = array();
 
-        // if node exists in the lookup array
         if (isset($this->lookup[$node]))
 
-            // iterate through all the nodes in the lookup array
             foreach ($this->lookup as $id => $properties)
 
-                // if
+
                 if (
 
-                    // node is a parent node
+
                     $properties[$this->properties['left_column']] < $this->lookup[$node][$this->properties['left_column']] &&
 
                     $properties[$this->properties['right_column']] > $this->lookup[$node][$this->properties['right_column']]
 
-                    // save the parent node's information
                 ) $parents[$properties[$this->properties['id_column']]] = $properties;
 
-        // add also the node given as argument
         $parents[$node] = $this->lookup[$node];
 
-        // return the path to the node
         return $parents;
 
     }
 
-    /**
-     *  Returns the previous sibling of a node.
-     *
-     *  @param  integer     $node           The ID of a node for which to return the previous sibling node.
-     *
-     *  @return mixed                       Returns a node's previous sibling node, "0" if a previous sibling doesn't
-     *                                      exist, or FALSE on error (if the node doesn't exist).
-     *
-     *                                      <i>Since this method may return both "0" and FALSE, make sure you use === to
-     *                                      verify the returned result!</i>
-     *
-     *  @since  2.2.6
-     */
+
     public function get_previous_sibling($node) {
 
         // if node exists, get its siblings
@@ -686,106 +605,43 @@ class TaskMapper{
 
     public function get_siblings($node, $include_self = false) {
 
-        // if parent node exists in the lookup array OR we're looking for the topmost nodes
+
         if (isset($this->lookup[$node])) {
 
-            // properties of the node
+
             $properties = $this->lookup[$node];
 
-            // get node's siblings
-            $siblings = $this->get_descendants($properties['parent']);
 
-            // remove self, if required so
+            $siblings = $this->get_childs($properties['parent']);
+
+
             if (!$include_self) unset($siblings[$node]);
 
-            // return siblings
+
             return $siblings;
 
         }
 
-        // if script gets this far, return false as something must've went wrong
+
         return false;
 
     }
 
-    /**
-     *  Returns a multidimensional array with all the descendant nodes (including children nodes of children nodes of
-     *  children nodes and so on) of a given node.
-     *
-     *  @param  integer     $node               (Optional) The ID of a node for which to return all descendant nodes, as
-     *                                          a multidimensional array.
-     *
-     *                                          Not given or given as "0", will return all the nodes.
-     *
-     *  @return array                           Returns a multi dimensional array with all the descendant nodes (including
-     *                                          children nodes of children nodes of children nodes and so on) of a given
-     *                                          node.
-     */
     public function get_tree($node = 0) {
 
-        // get direct children nodes
-        $descendants = $this->get_descendants($node);
 
-        // iterate through the direct children nodes
+        $descendants = $this->get_childs($node);
+
         foreach ($descendants as $id => $properties)
 
-            // for each child node create a "children" property
-            // and get the node's children nodes, recursively
+
             $descendants[$id]['children'] = $this->get_tree($id);
 
-        // return the array
         return $descendants;
 
     }
 
-    /**
-     *  Moves a node, including the node's descendants nodes, into another node (becoming that node's child), or
-     *  after/before a node (becoming that node's sibling)
-     *
-     *  <code>
-     *  // insert a topmost node
-     *  $node = $mptt->add(0, 'Main');
-     *
-     *  // add a child node
-     *  $child1 = $mptt->add($node, 'Child 1');
-     *
-     *  // add another child node
-     *  $child2 = $mptt->add($node, 'Child 2');
-     *
-     *  // add another child node
-     *  $child3 = $mptt->add($node, 'Child 3');
-     *
-     *  // move "Child 2" node to be the first of "Main"'s children nodes
-     *  $mptt->move($child2, $node, 0);
-     *
-     *  // move "Child 2" node into "Child 1"
-     *  $mptt->move($child2, $child1);
-     *
-     *  // move "Child 1" after "Child 3"
-     *  $mptt->move($child1, $child3, 'after');
-     *  </code>
-     *
-     *  @param  integer     $source     The ID of a node to move
-     *
-     *  @param  integer     $target     The ID of the node relative to which the source node needs to be moved. Use
-     *                                  "0" if the node does not need a parent node (making it a topmost node).
-     *
-     *  @param  integer     $position   (Optional) The position where to move the node, relative to the target node.
-     *
-     *                                  Can be a numerical value, indicating that the source node needs to be moved to
-     *                                  become a <b>child of the target node</b>, inserted at the indicated position (
-     *                                  the values are 0-based, meaning that if you want the node to be inserted as
-     *                                  the first child of the target node, you have to use "0", if you want it to
-     *                                  be second, use "1", and so on)
-     *
-     *                                  Can also be the literal "after" or "before" string, indicating the the source
-     *                                  node needs to be moved <b>after/before the target node</b>.
-     *
-     *                                  If not given (or given as boolean FALSE), the node will be inserted as the last
-     *                                  of the target node's children nodes.
-     *
-     *  @return boolean                 TRUE on success or FALSE on error
-     */
+
     public function move($source, $target, $position = false) {
 
         // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
@@ -1064,25 +920,7 @@ class TaskMapper{
 
     }
 
-    /**
-     *  Updates a node's title.
-     *
-     *  <code>
-     *  // add a topmost node
-     *  $node = $mptt->add(0, 'Main');
-     *
-     *  // change the node's title
-     *  $mptt->update($node, 'Primary');
-     *  </code>
-     *
-     *  @param  integer     $node       The ID of a node to update the title for.
-     *
-     *  @param  string      $title      The new title to be set for the node.
-     *
-     *  @return boolean                 TRUE on success or FALSE on error.
-     *
-     *  @since  2.2.5
-     */
+
     public function update($node, $title) {
 
         // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
@@ -1152,7 +990,7 @@ class TaskMapper{
 
         foreach ($this->lookup as $properties)
 
-            ${$this->properties['left_column']}[] = $properties[$this->properties['left_column']];
+            ${$this->properties['left_column']} [] = $properties[$this->properties['left_column']];
 
 
         array_multisort(${$this->properties['left_column']}, SORT_ASC, $this->lookup);
@@ -1172,6 +1010,25 @@ class TaskMapper{
         unset($tmp);
 
     }
+
+    function getLookup($node = false){
+        $this->_init();
+        $data = array();
+        $nodes = array();
+        foreach ($this->lookup as $key=>$value){
+            $data[$key] = $value;
+            if($data[$key]['parent'] == $node){
+                $nodes[$key] = $data[$key]['task'];
+            }
+        }
+
+
+        return count($nodes);
+       // return $data;
+
+
+    }
+
 
 }
 ?>

@@ -3,6 +3,7 @@
 
     <head>
         <title> Testing </title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/1.8.24/go-debug.js"></script>
     </head>
 
     <body>
@@ -123,13 +124,83 @@
         $delete = $task->delete($sagun);
 
        // get descendants of 'Ravi'
-        print_r('<p>childs of "Ravi"');
-        print_r('<pre>');
-        print_r($task->get_childs($ravi, false));
-        print_r('</pre>');
+        //print_r('<p>childs of "Ravi"');
+       //print_r('<pre>');
+       // echo '<pre>';
+      // print_r($task->get_childs($ravi, false));
+       // print_r($task->getLookup(1));
+        //print_r($task->get_next_sibling($sunil));
+        //   print_r($task->get_path_from_bottom($neha));
+
+       // print_r('</pre>');
+        $data = $task->get_tree($sunil);
+        $output = array();
+        $new = array();
+        foreach ($data as $value){
+             $output['key']= $value['id'];
+             $output['parent']= $value['parent'];
+             $output['name']= $value['task'];
+             $iterator = new RecursiveIteratorIterator(
+                new RecursiveArrayIterator($value['children']),
+                RecursiveIteratorIterator::CATCH_GET_CHILD
+            );
+
+            foreach ($iterator as $key => $item) {
+                if (is_array($item)) {
+                    var_dump($item);
+                }
+            }
+
+            /* foreach ($value['children'] as $child){
+                 $output['key']= $child['id'];
+                 $output['parent']= $child['parent'];
+                 $output['name']= $child['task'];
+             }*/
+     /*   foreach ($value['children'] as $key => $item) {
+            if (is_array($item) && $key === $value['children']['id']) {
+                echo "Found xyz: ";
+                var_dump($item);
+            }*/
+
+            array_push($new,$output);
+
+        }
+       // echo '<pre>';
+       // print_r($data);
+       // echo '</pre>';
+     //   echo  json_encode($new);
+
 
 
         ?>
+        <div id="myDiagramDiv2" class="diagramStyling" style="width:1200px; height:800px; background-color: #F0F0F0;"></div>
+        <script>
+            var $ = go.GraphObject.make;
+            var myDiagram =
+                $(go.Diagram, "myDiagramDiv2",
+                    {
+                        "undoManager.isEnabled": true, // enable Ctrl-Z to undo and Ctrl-Y to redo
+                        layout: $(go.TreeLayout, // specify a Diagram.layout that arranges trees
+                            { angle: 90, layerSpacing: 35 })
+                    });
 
+            // in the model data, each node is represented by a JavaScript object:
+            myDiagram.nodeTemplate =
+                $(go.Node, "Horizontal",
+                    { background: "#44CCFF" },
+                    $(go.Picture,
+                        { margin: 10, width: 50, height: 50, background: "red" },
+                        new go.Binding("source")),
+                    $(go.TextBlock, "Default Text",
+                        { margin: 12, stroke: "white", font: "bold 16px sans-serif" },
+                        new go.Binding("text", "name"))
+                );
+            var myModel = $(go.TreeModel);
+            myModel.nodeDataArray =
+               <?php echo  json_encode($new); ?>
+
+            myDiagram.model = myModel;
+
+        </script>
     </body>
 </html>
