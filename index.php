@@ -120,55 +120,52 @@
 
         $add_without_position = $task->add($ravi, 'test');
 
+        //delete node
         $delete = $task->delete($add_without_position);
         $delete = $task->delete($sagun);
 
-       // get descendants of 'Ravi'
-        //print_r('<p>childs of "Ravi"');
-       //print_r('<pre>');
-       // echo '<pre>';
-      // print_r($task->get_childs($ravi, false));
-       // print_r($task->getLookup(1));
-        //print_r($task->get_next_sibling($sunil));
-        //   print_r($task->get_path_from_bottom($neha));
+        //get Parents
+        $task->get_parent($sumit);
 
-       // print_r('</pre>');
+
+        //print_r($task->get_parent($sumit));
+
+        //get childs
+        $task->get_childs($ravi);
+
+        // copy from veena from salmaan to sumit
+       // $task->copy($veena,$sumit);
+
+        //get next siblings
+        $task->get_next_sibling($salmaan);
+        //print_r($task->get_next_sibling($salmaan));
+
+        //previous siblings
+        $task->get_previous_sibling($salmaan);
+       // print_r($task->get_previous_sibling($salmaan));
+
         $data = $task->get_tree($sunil);
-        $output = array();
-        $new = array();
-        foreach ($data as $value){
-             $output['key']= $value['id'];
-             $output['parent']= $value['parent'];
-             $output['name']= $value['task'];
-             $iterator = new RecursiveIteratorIterator(
-                new RecursiveArrayIterator($value['children']),
-                RecursiveIteratorIterator::CATCH_GET_CHILD
-            );
+        $tree = $task->getTreeData();
+       // echo  $task->getDepth($data);
 
-            foreach ($iterator as $key => $item) {
-                if (is_array($item)) {
-                    var_dump($item);
-                }
-            }
+        // Level check
+       // print_r($task->getLevel(3));
 
-            /* foreach ($value['children'] as $child){
-                 $output['key']= $child['id'];
-                 $output['parent']= $child['parent'];
-                 $output['name']= $child['task'];
-             }*/
-     /*   foreach ($value['children'] as $key => $item) {
-            if (is_array($item) && $key === $value['children']['id']) {
-                echo "Found xyz: ";
-                var_dump($item);
-            }*/
+        //get path
+        echo '<pre>';
+        print_r($task->get_path_from_bottom($veena));
 
-            array_push($new,$output);
 
-        }
-       // echo '<pre>';
-       // print_r($data);
-       // echo '</pre>';
-     //   echo  json_encode($new);
+
+
+    //   print_r($task->getLookup());
+
+
+       // get data node wise if node is not provide get all data
+        //print_r($data);
+        //print_r($task->getTreeData());
+
+      //echo  json_encode($tree);
 
 
 
@@ -197,7 +194,7 @@
                 );
             var myModel = $(go.TreeModel);
             myModel.nodeDataArray =
-               <?php echo  json_encode($new); ?>
+               <?php echo  json_encode($tree); ?>
 
             myDiagram.model = myModel;
 

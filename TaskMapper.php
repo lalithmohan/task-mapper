@@ -155,37 +155,25 @@ class TaskMapper{
 
     public function copy($source, $target, $position = false) {
 
-        // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
         $this->_init();
-
-        // continue only if
         if (
 
-            // source node exists in the lookup array AND
             isset($this->lookup[$source]) &&
 
-            // target node exists in the lookup array OR is 0 (indicating a topmost node)
             (isset($this->lookup[$target]) || $target == 0)
 
         ) {
 
-            // get the source's children nodes (if any)
-            $source_children = $this->get_descendants($source, false);
+            $source_children = $this->get_childs($source, false);
 
-            // this array will hold the items we need to copy
-            // by default we add the source item to it
             $sources = array($this->lookup[$source]);
 
-            // the copy's parent will be the target node
             $sources[0][$this->properties['parent_column']] = $target;
 
-            // iterate through source node's children
             foreach ($source_children as $child)
 
-                // save them for later use
                 $sources[] = $this->lookup[$child[$this->properties['id_column']]];
 
-            // the value with which items outside the boundary set below, are to be updated with
             $source_rl_difference =
 
                 $this->lookup[$source][$this->properties['right_column']] -
@@ -194,70 +182,37 @@ class TaskMapper{
 
                 + 1;
 
-            // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-            // the insert, and will need to be updated
             $source_boundary = $this->lookup[$source][$this->properties['left_column']];
 
-            // get target node's children (no deeper than the first level)
-            $target_children = $this->get_descendants($target);
+            $target_children = $this->get_childs($target);
 
-            // if copy is to be inserted in the default position (as the last of the target node's children)
             if ($position === false)
 
-                // give a numerical value to the position
                 $position = count($target_children);
 
-            // if a custom position was specified
-            else {
 
-                // make sure given position is an integer value
+            else {
                 $position = (int)$position;
-
-                // if position is a bogus number
                 if ($position > count($target_children) || $position < 0)
-
-                    // use the default position (the last of the target node's children)
                     $position = count($target_children);
-
             }
-
-            // we are about to do an insert and some nodes need to be updated first
-
-            // if target has no children nodes OR the copy is to be inserted as the target node's first child node
             if (empty($target_children) || $position == 0)
-
-                // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-                // the insert, and will need to be updated
-                // if parent is not found (meaning that we're inserting a topmost node) set the boundary to 0
                 $target_boundary = isset($this->lookup[$target]) ? $this->lookup[$target][$this->properties['left_column']] : 0;
-
-            // if target has children nodes and/or the copy needs to be inserted at a specific position
             else {
-
-                // find the target's child node that currently exists at the position where the new node needs to be inserted to
                 $slice = array_slice($target_children, $position - 1, 1);
 
                 $target_children = array_shift($slice);
-
-                // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-                // the insert, and will need to be updated
                 $target_boundary = $target_children[$this->properties['right_column']];
 
             }
-
-            // iterate through the nodes in the lookup array
             foreach ($this->lookup as $id => $properties) {
 
-                // if the "left" value of node is outside the boundary
                 if ($properties[$this->properties['left_column']] > $target_boundary)
 
-                    // increment it
                     $this->lookup[$id][$this->properties['left_column']] += $source_rl_difference;
 
-                // if the "right" value of node is outside the boundary
                 if ($properties[$this->properties['right_column']] > $target_boundary)
 
-                    // increment it
                     $this->lookup[$id][$this->properties['right_column']] += $source_rl_difference;
 
             }
@@ -305,74 +260,62 @@ class TaskMapper{
                     INSERT INTO
                         `' . $this->properties['table_name'] . '`
                         (
-                            `' . $this->properties['title_column'] . '`,
+                            `' . $this->properties['task_column'] . '`,
                             `' . $this->properties['left_column'] . '`,
                             `' . $this->properties['right_column'] . '`,
                             `' . $this->properties['parent_column'] . '`
                         )
                     VALUES
                         (
-                            "' . mysqli_real_escape_string($this->connection, $properties[$this->properties['title_column']]) . '",
+                            "' . mysqli_real_escape_string($this->connection, $properties[$this->properties['task_column']]) . '",
                             ' . $properties[$this->properties['left_column']] . ',
                             ' . $properties[$this->properties['right_column']] . ',
                             ' . $properties[$this->properties['parent_column']] . '
                         )
                 ');
 
-                // get the ID of the newly inserted node
                 $node_id = mysqli_insert_id($this->connection);
-
-                // because the node may have children nodes and its ID just changed
-                // we need to find its children and update the reference to the parent ID
                 foreach ($sources as $key => $value)
 
-                    // if a child node was found
                     if ($value[$this->properties['parent_column']] == $properties[$this->properties['id_column']])
 
-                        // update the reference to the parent ID
                         $sources[$key][$this->properties['parent_column']] = $node_id;
 
-                // update the node's properties with the ID
+
                 $properties[$this->properties['id_column']] = $node_id;
 
-                // update the array of inserted items
+
                 $sources[$id] = $properties;
 
             }
 
-            // a reference of a $properties and the last array element remain even after the foreach loop
-            // we have to destroy it
             unset($properties);
-
-            // release table lock
             mysqli_query($this->connection, 'UNLOCK TABLES');
-
-            // at this point, we have the nodes in the database but we need to also update the lookup array
 
             $parents = array();
 
-            // iterate through the inserted nodes
+
             foreach ($sources as $id => $properties) {
 
-                // if the node has any parents
+
                 if (count($parents) > 0)
 
-                    // iterate through the array of parent nodes
+
                     while ($parents[count($parents) - 1]['right'] < $properties[$this->properties['right_column']])
 
-                        // and remove those which are not parents of the current node
+
                         array_pop($parents);
 
-                // if there are any parents left
+
                 if (count($parents) > 0)
 
-                    // the last node in the $parents array is the current node's parent
+
                     $properties[$this->properties['parent_column']] = $parents[count($parents) - 1]['id'];
 
-                // update the lookup array
+
                 $this->lookup[$properties[$this->properties['id_column']]] = $properties;
 
-                // add current node to the stack
+
                 $parents[] = array(
 
                     'id'    =>  $properties[$this->properties['id_column']],
@@ -382,15 +325,15 @@ class TaskMapper{
 
             }
 
-            // reorder the lookup array
+
             $this->_reorder_lookup_array();
 
-            // return the ID of the copy
+
             return $sources[0][$this->properties['id_column']];
 
         }
 
-        // if scripts gets this far, return false as something must've went wrong
+
         return false;
 
     }
@@ -644,64 +587,60 @@ class TaskMapper{
 
     public function move($source, $target, $position = false) {
 
-        // lazy connection: touch the database only when the data is required for the first time and not at object instantiation
         $this->_init();
 
-        // continue only if
         if (
 
-            // source node exists in the lookup array AND
+
             isset($this->lookup[$source]) &&
 
-            // target node exists in the lookup array OR is 0 (indicating a topmost node)
+
             (isset($this->lookup[$target]) || $target == 0) &&
 
-            // target node is not a child node of the source node (that would cause infinite loop)
-            !in_array($target, array_keys($this->get_descendants($source, false)))
+
+            !in_array($target, array_keys($this->get_childs($source, false)))
 
         ) {
 
-            // if we have to move the node after/before another node
             if ($position === 'after' || $position === 'before') {
 
-                // get the target's parent node
                 $target_parent = $target == 0 ? 0 : $this->lookup[$target]['parent'];
 
-                // get the target's parent's descendant nodes
-                $descendants = $this->get_descendants($target_parent);
 
-                // get the target's position among the descendants
+                $descendants = $this->get_childs($target_parent);
+
+
                 $keys = array_keys($descendants);
                 $target_position = array_search($target, $keys);
 
-                // move the source node to the desired position
+
                 if ($position == 'after') return $this->move($source, $target_parent, $target_position + 1);
                 else return $this->move($source, $target_parent, $target_position == 0 ? 0 : $target_position - 1);
 
             }
 
-            // the source's parent node's ID becomes the target node's ID
+
             $this->lookup[$source][$this->properties['parent_column']] = $target;
 
-            // get source node's descendant nodes (if any)
-            $source_descendants = $this->get_descendants($source, false);
 
-            // this array will hold the nodes we need to move
-            // by default we add the source node to it
+            $source_descendants = $this->get_childs($source, false);
+
+
+
             $sources = array($this->lookup[$source]);
 
-            // iterate through source node's descendants
+
             foreach ($source_descendants as $descendant) {
 
-                // save them for later use
+
                 $sources[] = $this->lookup[$descendant[$this->properties['id_column']]];
 
-                // for now, remove them from the lookup array
+
                 unset($this->lookup[$descendant[$this->properties['id_column']]]);
 
             }
 
-            // the value with which nodes outside the boundary set below, are to be updated with
+
             $source_rl_difference =
 
                 $this->lookup[$source][$this->properties['right_column']] -
@@ -710,15 +649,15 @@ class TaskMapper{
 
                 + 1;
 
-            // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-            // the insert, and will need to be updated
+
+
             $source_boundary = $this->lookup[$source][$this->properties['left_column']];
 
-            // lock table to prevent other sessions from modifying the data and thus preserving data integrity
+
             mysqli_query($this->connection, 'LOCK TABLE `' . $this->properties['table_name'] . '` WRITE');
 
-            // we'll multiply the "left" and "right" values of the nodes we're about to move with "-1", in order to
-            // prevent the values being changed further in the script
+
+
             mysqli_query($this->connection, '
 
                 UPDATE
@@ -732,27 +671,27 @@ class TaskMapper{
 
             ');
 
-            // remove the source node from the list
+
             unset($this->lookup[$source]);
 
-            // iterate through the remaining nodes in the lookup array
+
             foreach ($this->lookup as $id=>$properties) {
 
-                // if the "left" value of node is outside the boundary
+
                 if ($this->lookup[$id][$this->properties['left_column']] > $source_boundary)
 
-                    // decrement it
+
                     $this->lookup[$id][$this->properties['left_column']] -= $source_rl_difference;
 
-                // if the "right" value of item is outside the boundary
+
                 if ($this->lookup[$id][$this->properties['right_column']] > $source_boundary)
 
-                    // decrement it
+
                     $this->lookup[$id][$this->properties['right_column']] -= $source_rl_difference;
 
             }
 
-            // update the nodes in the database having their "left"/"right" values outside the boundary
+
             mysqli_query($this->connection, '
 
                 UPDATE
@@ -775,52 +714,52 @@ class TaskMapper{
 
             ');
 
-            // get descendant nodes of target node (first level only)
-            $target_descendants = $this->get_descendants((int)$target);
 
-            // if node is to be inserted in the default position (as the last of target node's children nodes)
-            // give a numerical value to the position
-            if ($position === false) $position = count($target_descendants);
+            $target_childs = $this->get_childs((int)$target);
 
-            // if a custom position was specified
+
+
+            if ($position === false) $position = count($target_childs);
+
+
             else {
 
-                // make sure given position is an integer value
+
                 $position = (int)$position;
 
-                // if position is a bogus number
-                if ($position > count($target_descendants) || $position < 0)
 
-                    // use the default position (as the last of the target node's children)
-                    $position = count($target_descendants);
+                if ($position > count($target_childs) || $position < 0)
+
+
+                    $position = count($target_childs);
 
             }
 
-            // because of the insert, some nodes need to have their "left" and/or "right" values adjusted
 
-            // if target node has no descendant nodes OR the node is to be inserted as the target node's first child node
-            if (empty($target_descendants) || $position == 0)
 
-                // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-                // the insert, and will need to be updated
-                // if parent is not found (meaning that we're inserting a topmost node) set the boundary to 0
+
+            if (empty($target_childs) || $position == 0)
+
+
+
+
                 $target_boundary = isset($this->lookup[$target]) ? $this->lookup[$target][$this->properties['left_column']] : 0;
 
-            // if target has any descendant nodes and/or the node needs to be inserted at a specific position
+
             else {
 
-                // find the target's child node that currently exists at the position where the new node needs to be inserted to
-                $slice = array_slice($target_descendants, $position - 1, 1);
 
-                $target_descendants = array_shift($slice);
+                $slice = array_slice($target_childs, $position - 1, 1);
 
-                // set the boundary - nodes having their "left"/"right" values outside this boundary will be affected by
-                // the insert, and will need to be updated
-                $target_boundary = $target_descendants[$this->properties['right_column']];
+                $target_childs = array_shift($slice);
+
+
+
+                $target_boundary = $target_childs[$this->properties['right_column']];
 
             }
 
-            // iterate through the records in the lookup array
+
             foreach ($this->lookup as $id => $properties) {
 
                 // if the "left" value of node is outside the boundary
@@ -837,7 +776,7 @@ class TaskMapper{
 
             }
 
-            // update the nodes in the database having their "left"/"right" values outside the boundary
+
             mysqli_query($this->connection, '
 
                 UPDATE
@@ -860,26 +799,25 @@ class TaskMapper{
 
             ');
 
-            // finally, the nodes that are to be inserted need to have their "left" and "right" values updated
+
             $shift = $target_boundary - $source_boundary + 1;
 
-            // iterate through the nodes to be inserted
+
             foreach ($sources as $properties) {
 
-                // update "left" value
+
                 $properties[$this->properties['left_column']] += $shift;
 
-                // update "right" value
+
                 $properties[$this->properties['right_column']] += $shift;
 
-                // add the item to our lookup array
                 $this->lookup[$properties[$this->properties['id_column']]] = $properties;
 
             }
 
-            // also update the entries in the database
-            // (notice that we're subtracting rather than adding and that finally we multiply by -1 so that the values
-            // turn positive again)
+
+
+
             mysqli_query($this->connection, '
 
                 UPDATE
@@ -892,7 +830,7 @@ class TaskMapper{
 
             ');
 
-            // finally, update the parent of the source node
+
             mysqli_query($this->connection, '
 
                 UPDATE
@@ -978,9 +916,12 @@ class TaskMapper{
 
             $this->lookup = array();
 
+
             while ($row = mysqli_fetch_assoc($result))
 
                 $this->lookup[$row[$this->properties['id_column']]] = $row;
+
+
 
         }
 
@@ -1011,24 +952,56 @@ class TaskMapper{
 
     }
 
-    function getLookup($node = false){
+     public function getLookup($node = null){
         $this->_init();
-        $data = array();
-        $nodes = array();
-        foreach ($this->lookup as $key=>$value){
-            $data[$key] = $value;
-            if($data[$key]['parent'] == $node){
-                $nodes[$key] = $data[$key]['task'];
+
+        return isset($node)?$this->lookup[$node]:$this->lookup;
+
+    }
+
+    public function getDepth($array){
+        $depth = 1;
+        if(is_array($array)){
+            foreach ($array as $key =>$value){
+                $depth += $this->getDepth($value['children']);
+
             }
+
         }
+        return $depth;
+    }
 
+     public function getTreeData(){
+         $this->_init();
+         $new = array();
+             $dataa =  $this->getLookup();
 
-        return count($nodes);
-       // return $data;
+         foreach ($dataa as $key => $value){
+             $output['key']= $value['id'];
+             $output['parent']= $value['parent'];
+             $output['name']= $value['task'];
+             array_push($new,$output);
+         }
+         return $new;
+     }
+
+    public function getLevel($node){
+         $this->_init();
+             $level = array();
+         if(
+         $this->getLookup($node)['parent'] == '0'
+         ){
+             $level[] = $node['id'];
+         }
+         return $level;
+
+        //return $this->getLookup($node)['parent'];
 
 
     }
 
+    public function getGraph(){
 
+    }
 }
 ?>
